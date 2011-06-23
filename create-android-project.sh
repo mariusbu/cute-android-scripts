@@ -8,4 +8,4 @@ $ANDROID_SDK_ROOT/tools/android create project \
 --name "$1" \
 --path "./$1" \
 --activity "$1" \
---package "$ANDROID_PACKAGE_NAMESPACE$1"
+--package "$ANDROID_PACKAGE_NAMESPACE.$1"
