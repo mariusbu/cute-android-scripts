@@ -4,44 +4,106 @@ echo "usage: create-qt-project <project-name> <qt-source-dir>"
 
 PROJECT_NAME="$1"
 HOST_LOCATION="$2"
+PROJECT_DIR=$PWD/$PROJECT_NAME
 
 if [ -z "$PROJECT_NAME" ] | [ -z "$HOST_LOCATION" ]; then
 	exit 1
 fi
 
+echo "#### project: $PROJECT_DIR qt: $HOST_LOCATION"
+
 PACKAGE_NAME="$ANDROID_PACKAGE_NAMESPACE"."$PROJECT_NAME"
 PACKAGE_PATH=$(echo $PACKAGE_NAME | tr '.' '/')
 
-# Create the android project
+# Create project dir and copy qt android files
 
-$ANDROID_SDK_ROOT/tools/android create project \
---name $PROJECT_NAME \
---target $ANDROID_PLATFORM \
---path $PROJECT_NAME-java	\
---activity QtMain \
---package $PACKAGE_NAME
+ANDROID_DIR_NAME="android"
+ANDROID_MANIFEST_NAME="AndroidManifest.xml"
+ANDROID_LIBS_FILE_NAME="/res/values/libs.xml"
+ANDROID_STRINGS_FILE_NAME="/res/values/strings.xml"
+ANDROID_DEFAULT_PROPERTIES_NAME="default.properties"
 
-if [ "$?" -ne 0 ]; then
-	echo "Failed to create android project"
-	exit \$?
-fi
+ANDROID_DIR_PATH=$PROJECT_DIR/$ANDROID_DIR_NAME
 
-TARGET_LOCATION=$PROJECT_NAME-java/src/$PACKAGE_PATH
-TEMPLATE_PATH=$HOST_LOCATION/examples/android/QtAnimatedtiles/src/org/animatedtiles
-TEMPLATE_NAME=animatedtiles
+TEMPLATE_LOCATION=$HOST_LOCATION/src/android/java
+TEMPLATE_NAMESPACE=eu.licentia.necessitas.industrius
+TEMPLATE_NAME=example
+TEMPLATE_PACKAGE="$TEMPLATE_NAMESPACE.$TEMPLATE_NAME"
 
-rm $TARGET_LOCATION/QtMain.java
-mkdir -p $TARGET_LOCATION/qt
-cp $TEMPLATE_PATH/qt/QtMain.java $TARGET_LOCATION/qt/QtMain.java
-cp $TEMPLATE_PATH/AndroidManifest.xml $TARGET_LOCATION/AndroidManifest.xml
-sed -i "s/$TEMPLATE_NAME/$PROJECT_NAME/g" $TARGET_LOCATION/qt/QtMain.java
-sed -i "s/$TEMPLATE_NAME/$PROJECT_NAME/g" $TARGET_LOCATION/AndroidManifest.xml
+mkdir -p $PROJECT_DIR/$ANDROID_DIR_NAME/src
+
+for i in $( ls "$TEMPLATE_LOCATION" ); do
+	cp -r $TEMPLATE_LOCATION/$i $ANDROID_DIR_PATH/
+done
+
+# Patch the manifest file
+
+sed -i .old "s/$TEMPLATE_NAME/$TEMPLATE_NAME.$PROJECT_NAME/g" $ANDROID_DIR_PATH/$ANDROID_MANIFEST_NAME
+sed -i .old "s/\"\"/\"$PROJECT_NAME\"/g" $ANDROID_DIR_PATH/$ANDROID_MANIFEST_NAME
+sed -i .old "s/></>$PROJECT_NAME</g" $ANDROID_DIR_PATH/$ANDROID_STRINGS_FILE_NAME
+
+# Generate files for the android build system
+
+cat > $ANDROID_DIR_PATH/local.properties <<EOF
+sdk.dir=$ANDROID_SDK_ROOT
+EOF
+
+cat > $ANDROID_DIR_PATH/default.properties <<EOF
+target=$ANDROID_NDK_PLATFORM
+EOF
+
+cat > $ANDROID_DIR_PATH/build.xml <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="QtActivity" default="help">
+	<property file="build.properties" />
+	<property file="default.properties" />
+	<import file="\${sdk.dir}/tools/ant/pre_setup.xml" />
+	<setup />
+</project>
+EOF
+
+cat > $ANDROID_DIR_PATH/progard.cfg <<EOF
+-optimizationpasses 5
+-dontusemixedcaseclassnames
+-dontskipnonpubliclibraryclasses
+-dontpreverify
+-verbose
+-optimizations !code/simplification/arithmetic,!field/*,!class/merging/*
+
+-keep public class * extends android.app.Activity
+-keep public class * extends android.app.Application
+-keep public class * extends android.app.Service
+-keep public class * extends android.content.BroadcastReceiver
+-keep public class * extends android.content.ContentProvider
+-keep public class * extends android.app.backup.BackupAgentHelper
+-keep public class * extends android.preference.Preference
+-keep public class com.android.vending.licensing.ILicensingService
+
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+-keepclasseswithmembernames class * {
+    public <init>(android.content.Context, android.util.AttributeSet);
+}
+
+-keepclasseswithmembernames class * {
+    public <init>(android.content.Context, android.util.AttributeSet, int);
+}
+
+-keepclassmembers enum * {
+	public static **[] values();
+	public static ** valueOf(java.lang.String);
+}
+
+-keep class * implements android.os.Parcelable {
+	public static final android.os.Parcelable$Creator *;
+}
+EOF
 
 # Create the Qt project
 
-mkdir $PROJECT_NAME-cpp
-
-cat > $PROJECT_NAME-cpp/main.cpp <<EOF
+cat > $PROJECT_DIR/main.cpp <<EOF
 #include <QtGui/QApplication>
 #include <QtGui/QWidget>
 
@@ -54,37 +116,8 @@ int main(int argc, char *argv[])
 }
 EOF
 
-cat > $PROJECT_NAME-cpp/$PROJECT_NAME.pro <<EOF
+cat > $PROJECT_DIR/$PROJECT_NAME.pro <<EOF
 QT += core gui
 TARGET = $PROJECT_NAME
 SOURCES = main.cpp
 EOF
-
-# Make package build scripts
-
-cat > make-apk.sh <<EOF
-#!/bin/sh
-# move the libs over
-mkdir -p $PROJECT_NAME-java/libs/armeabi
-cp $PROJECT_NAME-cpp/lib$PROJECT_NAME.so* $PROJECT_NAME/libs/armeabia
-# make the package
-cd $PROJECT_NAME
-ant debug
-if [\$? -ne 0 ]; then
-	echo "Faild to build package"
-	exit \$?
-fi
-
-exit 0
-EOF
-
-chmod +x make-apk.sh
-
-# Make run script
-cat > adb-start.sh <<EOF
-#!/bin/sh
-\$ANDROID_SDK_ROOT/tools/adb shell am start -n $PACKAGE_NAME.qt/.QtMain
-exit 0
-EOF
-
-chmod +x adb-start.sh
