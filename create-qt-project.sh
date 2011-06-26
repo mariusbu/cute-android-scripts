@@ -31,6 +31,7 @@ TEMPLATE_NAME=example
 TEMPLATE_PACKAGE="$TEMPLATE_NAMESPACE.$TEMPLATE_NAME"
 
 mkdir -p $PROJECT_DIR/$ANDROID_DIR_NAME/src
+mkdir -p $PROJECT_DIR/$ANDROID_DIR_NAME/libs/armeabi
 
 for i in $( ls "$TEMPLATE_LOCATION" ); do
 	cp -r $TEMPLATE_LOCATION/$i $ANDROID_DIR_PATH/
@@ -38,7 +39,7 @@ done
 
 # Patch the manifest file
 
-sed -i .old "s/$TEMPLATE_NAME/$TEMPLATE_NAME.$PROJECT_NAME/g" $ANDROID_DIR_PATH/$ANDROID_MANIFEST_NAME
+sed -i .old "s/$TEMPLATE_PACKAGE/$PACKAGE_NAME/g" $ANDROID_DIR_PATH/$ANDROID_MANIFEST_NAME
 sed -i .old "s/\"\"/\"$PROJECT_NAME\"/g" $ANDROID_DIR_PATH/$ANDROID_MANIFEST_NAME
 sed -i .old "s/></>$PROJECT_NAME</g" $ANDROID_DIR_PATH/$ANDROID_STRINGS_FILE_NAME
 
@@ -54,7 +55,8 @@ EOF
 
 cat > $ANDROID_DIR_PATH/build.xml <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="QtActivity" default="help">
+<project name="$PROJECT_NAME" default="help">
+	<property file="local.properties" />
 	<property file="build.properties" />
 	<property file="default.properties" />
 	<import file="\${sdk.dir}/tools/ant/pre_setup.xml" />
@@ -62,7 +64,7 @@ cat > $ANDROID_DIR_PATH/build.xml <<EOF
 </project>
 EOF
 
-cat > $ANDROID_DIR_PATH/progard.cfg <<EOF
+cat > $ANDROID_DIR_PATH/proguard.cfg <<EOF
 -optimizationpasses 5
 -dontusemixedcaseclassnames
 -dontskipnonpubliclibraryclasses
@@ -97,7 +99,7 @@ cat > $ANDROID_DIR_PATH/progard.cfg <<EOF
 }
 
 -keep class * implements android.os.Parcelable {
-	public static final android.os.Parcelable$Creator *;
+	public static final android.os.Parcelable\$Creator *;
 }
 EOF
 
@@ -118,6 +120,7 @@ EOF
 
 cat > $PROJECT_DIR/$PROJECT_NAME.pro <<EOF
 QT += core gui
+DESTDIR = $ANDROID_DIR_NAME/libs/armeabi/
 TARGET = $PROJECT_NAME
 SOURCES = main.cpp
 EOF
