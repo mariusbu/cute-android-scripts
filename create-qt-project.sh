@@ -104,7 +104,7 @@ cat > $ANDROID_DIR_PATH/proguard.cfg <<EOF
 }
 EOF
 
-# Create the Qt project
+# Create the Qt project files
 
 cat > $PROJECT_DIR/main.cpp <<EOF
 #include <QtGui/QApplication>
